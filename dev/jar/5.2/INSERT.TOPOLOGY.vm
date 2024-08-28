@@ -1,0 +1,76 @@
+## 
+## INSERT.TOPOLOGY.vm
+## 
+## 
+Insert into $TABLE
+(
+#foreach ($ref in $referencecolumn)
+#if ( $velocityCount == 1 ) $ref.getDataname()
+#else 
+,$ref.getDataname()
+#end
+#end
+)
+Select
+#foreach ($ref in $referencecolumn)
+#if ( $velocityCount == 1 ) $ref.getDataname()
+#else 
+,$ref.getDataname()
+#end
+#end
+#set($first = true)
+FROM
+ ${TABLE}_CURRENT curr
+WHERE
+##
+## Checking number of unique keys
+## when one then NOT IN used in insert
+## when more then NOT IN + concat used in insert
+##
+#set($one = true)
+#foreach($ref in $referencecolumn)
+#if ($ref.getUniquekey() == 1)
+#if ($first)  
+#set($first = false)
+#else 
+#set($one = false) 
+#end
+#end
+#end
+#set($first = true)
+#foreach($ref in $referencecolumn)
+#if ($ref.getUniquekey() == 1)
+#if ($first)  
+#if ($one)
+curr.$ref.getDataname() NOT IN (SELECT distinct $ref.getDataname() FROM ${TABLE})
+#else
+curr.$ref.getDataname()
+#end
+#set($first = false)
+#else
+#if ($one == false)
+||':'||curr.$ref.getDataname()
+#end
+#end
+#end
+#end
+#set($first = true)
+#foreach($ref in $referencecolumn)
+#if ($ref.getUniquekey() == 1)
+#if ($first)  
+#if ($one == false)
+NOT IN (SELECT tbl.$ref.getDataname()
+#end
+#set($first = false)
+#else
+#if ($one == false)
+||':'||tbl.$ref.getDataname()
+#end
+#end
+#end
+#end
+#if ($one == false)
+FROM ${TABLE} tbl)
+#end
+;
+commit;

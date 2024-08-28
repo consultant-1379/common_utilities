@@ -1,0 +1,139 @@
+##
+## DAY.day.vm
+##
+##
+##
+##
+## Delete possible data before aggregation
+##
+DELETE $targetDerivedTable.get("SONDAYAGG")
+WHERE DATE_ID=$dateid
+##
+##
+##
+
+Insert into $targetDerivedTable.get("SONDAYAGG")
+(
+##
+## unique keys
+##
+#set($first = true)
+#foreach($col in  $TargetMeasurementKeyMap.get("SONDAYAGG"))
+#if($first) $col.getDataname() 
+#set($first = false)
+#else,$col.getDataname()
+#end
+#end
+,DC_RELEASE
+,DATE_ID
+,YEAR_ID
+,MONTH_ID
+,DAY_ID
+,WEEK_ID
+,DATACOVERAGE
+,AGG_COUNT
+,SESSION_ID
+,BATCH_ID
+,TIMELEVEL
+,PERIOD_DURATION
+,DC_SOURCE
+,DC_TIMEZONE
+,ROWSTATUS
+##
+## Aggregated Columns
+##
+#foreach($col in $TargetMeasurementCounterMap.get("SONDAYAGG"))
+#if ("$col.getTimeaggregation()" != "NONE")
+,$col.getDataname()
+#end  
+#end
+,DATETIME_ID
+,UTC_DATETIME_ID
+)
+Select
+##
+## unique keys
+##
+#set($first = true)
+#foreach($col in  $TargetMeasurementKeyMap.get("SONDAYAGG"))
+#if($first)
+#if($col.getDataname() == "OSS_ID")
+$col.getDataname()
+#else 
+MIN($col.getDataname())
+#end
+#set($first = false)
+#else
+#if($col.getDataname() == "OSS_ID")
+,$col.getDataname()
+#else 
+,MIN($col.getDataname())
+#end 
+#end
+#end
+,MIN(DC_RELEASE)
+,MIN(DATE_ID)
+,MIN(YEAR_ID)
+,MIN(MONTH_ID)
+,MIN(DAY_ID)
+,MIN(DATEPART(cwk, $dateid))
+,SUM(PERIOD_DURATION)
+,COUNT(*)
+,$sessionid
+,$batchid
+,'ROP'
+,15
+,MIN(DC_SOURCE)
+,MIN(DC_TIMEZONE)
+,'AGGREGATED'
+##
+## Aggregated Columns
+##
+#foreach($col in $TargetMeasurementCounterMap.get("SONDAYAGG"))
+#if ("$col.getTimeaggregation()" != "NONE")
+#if($col.getDataname() == "Initial_Erab_Estab_Succ_Den")
+,(SUM(pmRrcConnEstabAtt)-SUM(pmRrcConnEstabAttReatt))*SUM(pmRrcConnEstabSucc)*SUM(pmErabEstabAttInit)
+#elseif($col.getDataname() == "Initial_Erab_Estab_Succ_Num")
+,SUM(pmRrcConnEstabSucc)*SUM(pmS1SigConnEstabSucc)*SUM(pmErabEstabSuccInit)
+#elseif("$col.getTimeaggregation()" == "SUM" || "$col.getTimeaggregation()" == "AVG" || "$col.getTimeaggregation()" == "MAX" || "$col.getTimeaggregation()" == "MIN" || "$col.getTimeaggregation()" == "COUNT")
+,$col.getTimeaggregation()($col.getDataname())
+#else
+,case 
+#set($Timeaggregations = $col.getTimeaggregation())
+#set($releases = $Timeaggregations.split("/"))
+#foreach($release in $releases)
+#set($relfirst = true)
+#set($aggChecks = $release.split(";"))
+#foreach($aggCheck in $aggChecks)
+#if($relfirst == true )
+#set($supportedVersion = $aggCheck)
+#set($relfirst = false)
+#else
+#set($supportedAgg = $aggCheck)
+#end
+#end
+ when DC_RELEASE in ('$supportedVersion') then $supportedAgg($col.getDataname())
+#end
+ else SUM($col.getDataname())
+end
+#end
+#end 
+#end
+,MIN(DATETIME_ID)
+,UTC_DATETIME_ID
+from  $sourceDerivedTable.get("SONDAYAGG")  AS src 
+where src.DATE_ID=$dateid
+and src.ROWSTATUS NOT IN ('DUPLICATE','SUSPECTED')
+group by
+##set($first = true)
+##foreach($col in $TargetMeasurementKeyMap.get("SONDAYAGG"))
+##if ($col.getUniquekey() == 1)
+##if ($first) $col.getDataname()
+##set($first = false)
+##else
+##,$col.getDataname()
+##end
+##end
+##end
+OSS_ID
+,UTC_DATETIME_ID

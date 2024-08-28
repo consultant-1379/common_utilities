@@ -1,0 +1,76 @@
+## 
+## UPDATE.TOPOLOGY.vm
+## 
+## 
+Update $TABLE trg
+SET
+#set($first = true)
+#foreach ($ref in $referencecolumn)
+#if ($ref.getUniquekey() != 1 && $ref.getIncludeupd() == 1) 
+#if ( $first ) 
+trg.$ref.getDataname() = src.$ref.getDataname()
+#set($first = false)
+#else
+,trg.$ref.getDataname() = src.$ref.getDataname()
+#end
+#end
+#end
+FROM ${TABLE}_CURRENT src, $TABLE trg
+WHERE 
+(
+#set($first = true)
+#foreach ($ref in $referencecolumn)
+#if ($ref.getUniquekey() != 1 && $ref.getIncludeupd() == 1) 
+#if ( $first ) 
+##
+## Do for columns other than MODIFIED, do MODIFIED only if UPDATE_POLICY is Timed Dynamic(=3)
+##
+#if( ($ref.getDataname().equalsIgnoreCase("MODIFIED") == false) || ($ref.getDataname().equalsIgnoreCase("MODIFIED") == true && $rtable.getUpdate_policy() == 3) )
+#if ( $ref.getDatatype().equalsIgnoreCase("varchar") == true)
+ifnull(trg.$ref.getDataname(),'',trg.$ref.getDataname()) <> ifnull(src.$ref.getDataname(),'',src.$ref.getDataname())
+#else
+#if ($ref.getDatatype().equalsIgnoreCase("date") == true || $ref.getDatatype().equalsIgnoreCase("timestamp") == true || $ref.getDatatype().equalsIgnoreCase("datetime") == true)
+ifnull(trg.$ref.getDataname(),date('0001-01-01'),trg.$ref.getDataname()) <> ifnull(src.$ref.getDataname(),date('0001-01-01'),src.$ref.getDataname())
+#elseif ($ref.getDatatype().equalsIgnoreCase("binary") == true)
+ifnull(trg.$ref.getDataname(),0x00000000,trg.$ref.getDataname()) <> ifnull(src.$ref.getDataname(),0x00000000,src.$ref.getDataname())
+#else
+ifnull(trg.$ref.getDataname(),-1,trg.$ref.getDataname()) <> ifnull(src.$ref.getDataname(),-1,src.$ref.getDataname())
+#end
+#end
+#set($first = false)
+#end
+#else
+##
+## Do for columns other than MODIFIED, do MODIFIED only if UPDATE_POLICY is Timed Dynamic(=3)
+##
+#if( ($ref.getDataname().equalsIgnoreCase("MODIFIED") == false) || ($ref.getDataname().equalsIgnoreCase("MODIFIED") == true && $rtable.getUpdate_policy() == 3) )
+#if ($ref.getDatatype().equalsIgnoreCase("varchar") == true)
+OR ifnull(trg.$ref.getDataname(),'',trg.$ref.getDataname()) <> ifnull(src.$ref.getDataname(),'',src.$ref.getDataname())
+#else
+#if ($ref.getDatatype().equalsIgnoreCase("date") == true || $ref.getDatatype().equalsIgnoreCase("timestamp") == true || $ref.getDatatype().equalsIgnoreCase("datetime") == true)
+OR ifnull(trg.$ref.getDataname(),date('0001-01-01'),trg.$ref.getDataname()) <> ifnull(src.$ref.getDataname(),date('0001-01-01'),src.$ref.getDataname())
+#elseif ($ref.getDatatype().equalsIgnoreCase("binary") == true)
+OR ifnull(trg.$ref.getDataname(),0x00000000,trg.$ref.getDataname()) <> ifnull(src.$ref.getDataname(),0x00000000,src.$ref.getDataname())
+#else
+OR ifnull(trg.$ref.getDataname(),-1,trg.$ref.getDataname()) <> ifnull(src.$ref.getDataname(),-1,src.$ref.getDataname())
+#end
+#end
+#end
+#end
+#end
+#end
+)
+AND
+#set($first = true)
+#foreach ($ref in $referencecolumn)
+#if ($ref.getUniquekey() == 1) 
+#if ( $first )
+trg.$ref.getDataname() = src.$ref.getDataname()
+#set($first = false)
+#else 
+AND trg.$ref.getDataname() = src.$ref.getDataname()
+#end
+#end
+#end
+;
+commit;

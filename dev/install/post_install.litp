@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+LOGGER=/usr/bin/logger
+LN=/bin/ln
+
+. /eniq/sw/conf/niq.rc
+$LOGGER "Linking ${ADMIN_BIN}/rmiregistry to /etc/init.d/rmiregistry"
+$LN -s ${ADMIN_BIN}/rmiregistry /etc/init.d/rmiregistry
+exit 0

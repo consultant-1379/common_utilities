@@ -1,0 +1,6 @@
+LOAD TABLE $TABLE  (
+#foreach ($meas in $measurementColumn)
+#if ( $velocityCount == 1 )$meas #else , $meas #end #end ) 
+FROM $FILENAMES 
+$LOADERPARAMETERS
+;

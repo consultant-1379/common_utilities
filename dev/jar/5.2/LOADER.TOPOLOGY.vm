@@ -1,0 +1,18 @@
+## 
+## LOADER.TOPOLOGY.vm
+## 
+##
+ 
+Delete from $TABLE;
+
+LOAD TABLE $TABLE  ( 
+#foreach ($ref in $referencecolumn)
+#if ( $velocityCount == 1 ) $ref.getDataname()
+#else 
+,$ref.getDataname()
+#end
+#end
+)  
+FROM $FILENAMES  
+$LOADERPARAMETERS
+;

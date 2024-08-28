@@ -1,0 +1,124 @@
+## 
+## DAYBH.DAY.vm
+## 
+##
+##
+## Delete possible data before aggregation
+##
+
+DELETE $targetDerivedTable.get("RANKSRC")
+WHERE DATE_ID=$dateid
+AND BHTYPE in (select distinct BHTYPE from $sourceDerivedTable.get("RANKSRC"))
+
+Insert into $targetDerivedTable.get("RANKSRC")
+(
+##
+## keys
+##
+#set($first = true)
+#foreach($col in $TargetMeasurementKeyMap.get("RANKSRC"))
+#if($first) $col.getDataname()
+#set($first = false)
+#else 
+,$col.getDataname()
+#end
+#end
+,DATE_ID
+,YEAR_ID
+,MONTH_ID
+,DAY_ID
+,MIN_ID
+,BHTYPE
+,BUSYHOUR
+,BHCLASS
+,TIMELEVEL
+,SESSION_ID
+,BATCH_ID
+,PERIOD_DURATION
+,ROWSTATUS
+,DC_RELEASE
+,DC_SOURCE
+,DC_TIMEZONE
+,BH_ID
+,OFFSET
+##
+## Columns
+##
+#foreach($col in $TargetMeasurementCounterMap.get("RANKSRC"))
+,$col.getDataname()
+#end
+)
+select
+##
+## keys
+##
+#set($first = true)
+#foreach($col in $TargetMeasurementKeyMap.get("RANKSRC"))
+##if ($col.getUniquekey() == 1)
+#if($first) raw.$col.getDataname()
+#set($first = false)
+#else 
+,raw.$col.getDataname()
+#end
+##end
+#end
+,raw.DATE_ID
+,raw.YEAR_ID
+,raw.MONTH_ID
+,raw.DAY_ID
+,raw.MIN_ID
+,rankbh.BHTYPE
+,raw.HOUR_ID
+,rankbh.BHCLASS
+,'DAYBH'
+,$sessionid
+,$batchid
+,raw.PERIOD_DURATION
+,'AGGREGATED'
+,raw.DC_RELEASE
+,raw.DC_SOURCE
+,raw.DC_TIMEZONE
+,rankbh.BH_ID
+,rankbh.OFFSET
+##
+## Columns
+##
+#foreach($col in $TargetMeasurementCounterMap.get("RANKSRC"))
+,raw.$col.getDataname()
+#end
+from 
+(SELECT 
+DATE_ID,
+BHTYPE,
+BUSYHOUR,
+BHCLASS,
+BH_ID,
+OFFSET,
+##
+## columns
+##
+#foreach($col in $SourceMeasurementKeyMap.get("RANKSRC"))
+$col.getDataname(),
+#end
+CAST(rankbh.DATE_ID || ' ' || rankbh.BUSYHOUR || ':' || rankbh.OFFSET AS TIMESTAMP) AS start_timestamp, DATEADD(MINUTE, rankbh.WINDOWSIZE, rankbh.DATE_ID || ' ' || rankbh.BUSYHOUR || ':' || rankbh.OFFSET) AS end_timestamp FROM $sourceDerivedTable.get("RANKSRC") AS rankbh where rankbh.DATE_ID = $dateid and rankbh.BUSYHOUR is not null) AS rankbh, 
+$sourceDerivedTable.get("BHSRC") as raw, LOG_BUSYHOURMAPPING as map
+where 
+raw.datetime_id >= rankbh.start_timestamp
+and
+raw.datetime_id < rankbh.end_timestamp 
+and raw.date_id between $dateid and dateadd (dd,+1,$dateid)
+and map.BHTARGETLEVEL = rankbh.BHTYPE
+and map.BHTARGETTYPE = '$sourceType.get("BHSRC")'
+and map.ENABLE = 1
+and raw.ROWSTATUS NOT IN ('DUPLICATE','SUSPECTED')
+##
+## unique keys
+##
+#foreach($col in $SourceMeasurementKeyMap.get("RANKSRC"))
+#if ($col.getUniquekey() == 1)
+and rankbh.$col.getDataname() = raw.$col.getDataname()
+#end
+#end
+
+
+

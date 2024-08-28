@@ -1,0 +1,5 @@
+if exists (select 1
+    from   sys.sysprocedure a
+     where  a.proc_name = 'PLSQL_$basetablename') then
+    call PLSQL_$basetablename();
+end if;

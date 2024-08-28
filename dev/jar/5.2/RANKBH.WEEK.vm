@@ -1,0 +1,94 @@
+
+## RANKBH.WEEK.vm
+## UPDATE weekbh to 0
+##
+
+set temporary option join_preference='-1'
+
+## Use \#foreach ... \#end for loops to be run later as Velocity Template will be parsed more than once.
+## Template run first to by Wizard on Sets/Actions/Schedulings tab (where columns are set). 
+## Will be run later and the \# loops evaluated during the aggregation.
+
+\#foreach($table in $targetTableList.get("RANKBHCLASS"))
+
+UPDATE $table.get("table") AS dst  
+SET 
+dst.weekbh = 0
+WHERE dst.date_id between $dateid and dateadd(dd,6,$dateid)
+and dst.bhtype='$Bhtype.get("RANKBHCLASS")';
+
+\#end
+
+
+## GET busyhour of week
+##
+
+
+## Create temporary table
+##
+SELECT 
+#foreach($col in $TargetMeasurementKeyMap.get("RANKBHCLASS"))
+#if ($col.getUniquekey() == 1)
+b.$col.getDataname() AS $col.getDataname(), 
+#end
+#end
+b.bhtype AS bhtype,max(b.bhvalue) AS bhvalue, cast(null as date) AS date_id 
+INTO #calculate_week_$targetTable.get("RANKBHCLASS") 
+FROM $targetDerivedTable.get("RANKBHCLASS") as b 
+where b.date_id between $dateid and dateadd(dd,6,$dateid) 
+and b.bhtype = '$Bhtype.get("RANKBHCLASS")' 
+group by 
+#foreach($col in $TargetMeasurementKeyMap.get("RANKBHCLASS"))
+#if ($col.getUniquekey() == 1)
+b.$col.getDataname(),
+#end
+#end
+b.bhtype;
+
+## Update date_id in temporary table
+##
+UPDATE #calculate_week_$targetTable.get("RANKBHCLASS") AS dst 
+SET dst.date_id = a.date_id from $targetDerivedTable.get("RANKBHCLASS") as a
+where a.date_id between $dateid and dateadd(dd,6,$dateid) 
+and a.bhtype = dst.bhtype
+#foreach($col in $TargetMeasurementKeyMap.get("RANKBHCLASS"))
+#if ($col.getUniquekey() == 1)
+and a.$col.getDataname() = dst.$col.getDataname() 
+#end
+#end
+and a.bhvalue = dst.bhvalue;
+
+\#foreach($table in $targetTableList.get("RANKBHCLASS"))
+
+UPDATE $table.get("table") AS dst 
+SET 
+dst.weekbh = 1 
+from #calculate_week_$targetTable.get("RANKBHCLASS") as a
+where dst.date_id=a.date_id
+## KEY-COLUMNS
+#foreach($col in $TargetMeasurementKeyMap.get("RANKBHCLASS"))
+#if ($col.getUniquekey() == 1)
+and dst.$col.getDataname()= a.$col.getDataname() 
+#end
+#end
+and dst.bhvalue=a.bhvalue;
+
+\#end
+
+drop table #calculate_week_$targetTable.get("RANKBHCLASS");
+
+## UPDATE bhclass
+##
+
+\#foreach($table in $targetTableList.get("RANKBHCLASS"))
+
+UPDATE $table.get("table") AS dst  
+SET 
+dst.bhclass = (dst.monthbh * 100) + (dst.weekbh * 10) + 1 
+WHERE dst.date_id between $dateid and dateadd(dd,6,$dateid)
+and dst.bhtype='$Bhtype.get("RANKBHCLASS")';
+
+\#end
+
+set temporary option join_preference='0'
+

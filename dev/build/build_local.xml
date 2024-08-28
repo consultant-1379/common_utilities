@@ -1,0 +1,47 @@
+<project name="common" default="compile">
+
+  <property name="pack.name" value="common"/>
+  <property name="pack.version" value="5-0-0"/>
+
+  
+  <property name="vob.home" value="C:/cc_storage/eramano_aac_sp1"/> <!--Path to vobs in your machine -->	
+  <property name="pack.dir" value="${vob.home}/common_utilities/dev"/>
+  <property name="pack.dir" value="${vob.home}/common_utilities/dev"/>
+
+  <property name="3pp.velocity.dir" value="${vob.home}/eniq_3pp/apache/jakarta_velocity/v1_4/prod"/>
+
+  <property name="eniq.repository.dir" value="${vob.home}/installer/build/repository"/>
+	
+  <target name="precompile"/>
+  
+  <target name="clean">
+		<delete>
+		   <fileset dir="${pack.dir}/classes"/>
+	</delete>
+  </target>
+	
+  <target name="compile" depends="clean">
+    <mkdir dir="${pack.dir}/classes"/>
+    <javac srcdir="${pack.dir}/src" destdir="${pack.dir}/classes"
+           failonerror="true"
+           debug="off"
+           optimize="off" 
+           deprecation="off">
+      <classpath>
+        <pathelement path="${classpath}"/>
+		<fileset dir="${3pp.velocity.dir}">
+      	  <include name="**/*.jar"/>
+        </fileset>
+		<fileset dir="${eniq.repository.dir}">
+      	  <include name="**/*.jar"/>
+        </fileset>
+      </classpath>
+    </javac>
+    <jar destfile="${pack.dir}/common.jar"
+       basedir="${pack.dir}/classes"
+    />
+  </target>
+
+  <target name="postcompile"/>
+
+</project>

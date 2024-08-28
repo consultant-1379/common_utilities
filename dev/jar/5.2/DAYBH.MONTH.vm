@@ -1,0 +1,26 @@
+## DAYBH.MONTH.vm
+## UPDATE DAYBH-table
+##
+
+\#foreach($table in $targetTableList.get("DAYBHCLASS"))
+
+UPDATE $table.get("table") AS dst 
+SET 
+dst.bhclass = src.bhclass FROM $sourceDerivedTable.get("DAYBHCLASS") as src
+WHERE dst.date_id between $dateid and dateadd(mm,1,$dateid)-1
+and dst.date_id = src.date_id
+and dst.bhtype = src.bhtype and
+## KEY-COLUMNS
+#set($first = true)
+#foreach($col in $SourceMeasurementKeyMap.get("DAYBHCLASS"))
+#if ($col.getUniquekey() == 1)
+#if($first) 
+dst.$col.getDataname()= src.$col.getDataname()
+#set($first = false)
+#else 
+and dst.$col.getDataname()= src.$col.getDataname()
+#end
+#end
+#end
+
+\#end

@@ -1,0 +1,86 @@
+## 
+## REMOVE.TOPOLOGY.vm
+## 
+## 
+Update $TABLE trg
+SET
+trg.STATUS = 'DEACTIVE'
+WHERE 
+##
+## HK64447 WRAN topology files put the Status as DEACTIVE when data is loaded to Database
+## eeoidiv, 20091207, added IN check.
+##
+#set($first = true)
+#foreach($ref in $referencecolumn)
+#if ($ref.getUniquekey() == 1)
+#if($first)  
+trg.$ref.getDataname() IN (SELECT DISTINCT src.$ref.getDataname() FROM ${TABLE}_CURRENT src)
+#set($first = false)
+#end
+#end
+#end
+AND 
+##
+## Checking number of unique keys
+## when one then NOT IN used in update
+## when more then NOT IN + concat used in update
+##
+#set($first = true)
+#set($one = true)
+#foreach($ref in $referencecolumn)
+#if ($ref.getUniquekey() == 1)
+#if ($first)  
+#set($first = false)
+#else 
+#set($one = false) 
+#end
+#end
+#end
+##
+#set($first = true)
+#foreach($ref in $referencecolumn)
+#if ($ref.getUniquekey() == 1)
+#if($first)  
+#if($one)  
+trg.$ref.getDataname() NOT IN (SELECT distinct $ref.getDataname() FROM ${TABLE}_CURRENT)
+#else
+trg.$ref.getDataname() 
+#end
+#set($first = false)
+#else
+#if($one == false)
+||':'||trg.$ref.getDataname()
+#end
+#end
+#end
+#end
+#set($first = true)
+#foreach($ref in $referencecolumn)
+#if ($ref.getUniquekey() == 1)
+#if($first)  
+#if($one == false)  
+NOT IN (SELECT src.$ref.getDataname() 
+#end
+#set($first = false)
+#else
+#if($one == false)
+||':'||src.$ref.getDataname()
+#end
+#end
+#end
+#end
+#if ($one == false)
+FROM ${TABLE}_CURRENT src)
+#end
+##
+## If UPDATE_POLICY is Timed Dynamic (3)
+##
+#if ($rtable.getUpdate_policy() == 3)
+AND NOW(*) > dateadd(hh,72,trg.MODIFIED) 
+#end
+;
+Delete from $TABLE trg
+where
+NOW(*) > dateadd(yy,3,trg.MODIFIED) AND trg.STATUS='DEACTIVE'
+;
+commit;

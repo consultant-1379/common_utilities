@@ -1,0 +1,18 @@
+## 
+## LOADER.CURRENT.vm
+## 
+##
+
+Delete from ${TABLE}_CURRENT_DC;
+
+LOAD TABLE ${TABLE}_CURRENT_DC  ( 
+#foreach ($ref in $referencecolumn)
+#if ( $velocityCount == 1 ) $ref.getDataname()
+#else 
+,$ref.getDataname()
+#end
+#end
+)  
+FROM $FILENAMES  
+$LOADERPARAMETERS
+;

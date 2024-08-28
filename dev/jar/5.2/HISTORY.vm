@@ -1,0 +1,128 @@
+##
+## HISTORY.vm
+##
+##
+/*Comparing values from sync with data in actual table in db or in history partitions
+Insert into the CALC table, the modified data from the loading table + the original MOs from the actual table: */
+INSERT INTO $joinTableName ($startTime,$endTime,$typeOfChangeCol,#set($first = true)#foreach ($key in $keys)#if($first)$key.getDataname() #set($first = false)#else,$key.getDataname()#end#end,#set($first = true)#foreach ($attribute in $attributes)#if($first)$attribute.getDataname() #set($first = false)#else,$attribute.getDataname()#end#end)
+  SELECT
+      FIRST_VALUE($startTime) OVER (PARTITION BY #set($first = true)#foreach ($key in $keys)#if($first)$key.getDataname() #set($first = false)#else,$key.getDataname()#end#end ORDER BY $startTime rows between current row AND current row) AS NEW_START_TIME,
+-- Take start time of following record as the end time of the current record. Last record will have NULL as the end time.
+      FIRST_VALUE($startTime) OVER (PARTITION BY #set($first = true)#foreach ($key in $keys)#if($first)$key.getDataname() #set($first = false)#else,$key.getDataname()#end#end ORDER BY $startTime rows between 1 following AND 1 following) AS END_TIME,
+      $typeOfChangeCol #foreach ($key in $keys),$key.getDataname()#end#foreach ($att in $attributes),$att.getDataname()#end
+
+  FROM (SELECT DISTINCT  LOADING1.$startTime,LOADING1.$endTime,LOADING1.$typeOfChangeCol#foreach ($key in $keys),LOADING1.$key.getDataname()#end#foreach ($attribute in $attributes),LOADING1.$attribute.getDataname()#end FROM $loadTableName LOADING1
+        ,(--Fetching only the most recent rows for every unique mo from the history table
+          SELECT DISTINCT HISTORY.$startTime, HISTORY.$endTime, HISTORY.$typeOfChangeCol#foreach ($key in $keys), HISTORY.$key.getDataname()#end FROM ${TABLE}_HIST_RAW HISTORY,
+	  (SELECT DISTINCT #foreach ($key in $keys) $key.getDataname(),#end MAX($startTime) AS latest_start_time FROM ${TABLE}_ACT_HIST
+	  GROUP BY #set($first = true)#foreach ($key in $keys)#if($first) $key.getDataname() #set($first = false)#else,$key.getDataname() #end#end ) MAX_START_TIME
+	  WHERE HISTORY.CHANGE_TYPE <> 2
+	  AND HISTORY.START_TIME = MAX_START_TIME.latest_start_time #foreach ($key in $keys)
+	  AND HISTORY.$key.getDataname() = MAX_START_TIME.$key.getDataname()#end
+--  Code to eliminate view here
+  UNION
+		SELECT DISTINCT ACTUAL.$startTime, ACTUAL.$endTime, ACTUAL.$typeOfChangeCol#foreach ($key in $keys), ACTUAL.$key.getDataname()#end FROM $TABLE ACTUAL,
+		/*Note this is the second instance of this query but Sybase probably catches it and it is proven to be much more efficient to so this twice (the alternative/old way is view which joined 2 large tables and only after the join applied below filter)*/
+		(SELECT DISTINCT #foreach ($key in $keys) $key.getDataname(),#end MAX($startTime) AS latest_start_time FROM ${TABLE}_ACT_HIST
+	  GROUP BY #set($first = true)#foreach ($key in $keys)#if($first) $key.getDataname() #set($first = false)#else,$key.getDataname() #end#end ) MAX_START_TIME
+	  WHERE ACTUAL.START_TIME = MAX_START_TIME.latest_start_time #foreach ($key in $keys)
+	  AND ACTUAL.$key.getDataname() = MAX_START_TIME.$key.getDataname()#end ) MOST_RECENT
+  WHERE
+        (-- added or modified (non-deleted)
+         LOADING1.START_TIME > MOST_RECENT.START_TIME AND MOST_RECENT.CHANGE_TYPE <>2 AND MOST_RECENT.END_TIME='2099-12-31 00:00:00'
+        #foreach ($key in $keys) AND MOST_RECENT.$key.getDataname()=LOADING1.$key.getDataname()
+#end
+        )
+      OR
+        (--Looking for newer delete record exists in db (When mo gets deleted its entry would be in history)
+         LOADING1.START_TIME > MOST_RECENT.END_TIME AND MOST_RECENT.CHANGE_TYPE <>2 AND MOST_RECENT.END_TIME<>'2099-12-31 00:00:00'
+        #foreach ($key in $keys) AND MOST_RECENT.$key.getDataname()=LOADING1.$key.getDataname()
+#end
+        )
+  UNION ALL
+/* Get the original MOs from the actual table if they exist in the loaded data (current_dc).
+Combine these original MOs with the modified MOs (union all): */
+      (SELECT $startTime,$endTime,$typeOfChangeCol#foreach ($key in $keys),$key.getDataname()#end#foreach ($attribute in $attributes),$attribute.getDataname()#end FROM $TABLE ACTUAL WHERE EXISTS (
+            SELECT 1
+            FROM $loadTableName LOADING2
+            WHERE (#set($first = true)#foreach ($key in $keys)#if($first)ACTUAL.$key.getDataname()=LOADING2.$key.getDataname() #set($first = false)#else AND ACTUAL.$key.getDataname()=LOADING2.$key.getDataname()#end#end)
+       ))
+  ) AS MODIFICATIONS_AND_ORIGINALS
+  ORDER BY #set($first = true)#foreach ($key in $keys)#if($first)$key.getDataname() #set($first = false)#else,$key.getDataname()#end#end, $startTime;
+/*Add new in Sync that are not already in db
+Insert new MOs into the calc table from loading table (MOs that are in the loading table, but not in the historical table).*/
+INSERT INTO $joinTableName ($startTime,$endTime,$typeOfChangeCol,#set($first = true)#foreach ($key in $keys)#if($first)$key.getDataname() #set($first = false)#else,$key.getDataname()#end#end,#set($first = true)#foreach ($attribute in $attributes)#if($first)$attribute.getDataname() #set($first = false)#else,$attribute.getDataname()#end#end)
+	SELECT
+		FIRST_VALUE($startTime) OVER (PARTITION BY #set($first = true)#foreach ($key in $keys)#if($first)$key.getDataname() #set($first = false)#else,$key.getDataname()#end#end ORDER BY $startTime rows between current row AND current row) AS NEW_START_TIME,
+    	FIRST_VALUE($startTime) OVER (PARTITION BY #set($first = true)#foreach ($key in $keys)#if($first)$key.getDataname() #set($first = false)#else,$key.getDataname()#end#end ORDER BY $startTime rows between 1 following AND 1 following) AS END_TIME,
+		$typeOfChangeCol#foreach ($key in $keys),$key.getDataname()#end#foreach ($attribute in $attributes),$attribute.getDataname()#end
+	FROM (SELECT LOADING.$startTime,LOADING.$endTime,LOADING.$typeOfChangeCol#foreach ($key in $keys),LOADING.$key.getDataname()#end#foreach ($attribute in $attributes),LOADING.$attribute.getDataname()#end FROM $loadTableName LOADING
+	LEFT JOIN ${TABLE}_ACT_HIST HISTORY ON
+	#set($first = true)
+	#foreach ($key in $keys)
+		#if($first) LOADING.$key.getDataname()=HISTORY.$key.getDataname()
+			#set($first = false)
+		#else AND LOADING.$key.getDataname()=HISTORY.$key.getDataname()
+		#end
+	#end
+	WHERE
+	#set($first = true)
+		#foreach ($key in $keys)
+			#if($first) HISTORY.$key.getDataname()
+				#set($first = false)
+			#end
+		#end
+	 IS NULL ) as NEW_MOS;
+
+--Wipe the objects updated
+DELETE
+  FROM $TABLE
+  FROM $TABLE ACTUAL, $joinTableName MODIFICATIONS_ORIGINALS_AND_NEW_MOS
+  WHERE
+#set($first = true)
+#foreach ($key in $keys)
+#if($first)
+    ACTUAL.$key.getDataname()=MODIFICATIONS_ORIGINALS_AND_NEW_MOS.$key.getDataname()
+#set($first = false)
+#else
+     AND ACTUAL.$key.getDataname()=MODIFICATIONS_ORIGINALS_AND_NEW_MOS.$key.getDataname()
+#end
+#end
+;
+--insert historical records (all but the last one)
+INSERT INTO ${TABLE}_HIST_RAW ($startTime,$endTime,$typeOfChangeCol#foreach ($key in $keys),$key.getDataname()#end#foreach ($attribute in $attributes),$attribute.getDataname()#end) SELECT $startTime,$endTime,$typeOfChangeCol#foreach ($key in $keys),$key.getDataname()#end#foreach ($attribute in $attributes),$attribute.getDataname()#end FROM $joinTableName WHERE $endTime IS NOT NULL OR ($endTime IS NULL AND $typeOfChangeCol=2);
+/*move last record as well if it's a delete
+insert the  missing records from sync into history if full sync.*/
+IF (SELECT COUNT(*) FROM $loadTableName WHERE IS_FULL_SYNC=1) > 0
+THEN
+    BEGIN
+      --Records should be removed from actual table and moved to history if not in full sync file, where sync file time is newer.
+      INSERT INTO ${TABLE}_HIST_RAW ($startTime,$endTime,$typeOfChangeCol#foreach ($key in $keys),$key.getDataname()#end#foreach ($attribute in $attributes),$attribute.getDataname()#end)
+        SELECT $startTime,(SELECT MAX(FILE_TIME) FROM $loadTableName) AS $endTime,2#foreach ($key in $keys),$key.getDataname()#end#foreach ($attribute in $attributes),$attribute.getDataname()#end FROM $TABLE ACTUAL
+        WHERE (SELECT MAX(FILE_TIME) FROM $loadTableName)>START_TIME AND NOT EXISTS (SELECT 1 FROM $loadTableName LOADING WHERE (#set($first = true)#foreach ($key in $keys)#if($first)ACTUAL.$key.getDataname()=LOADING.$key.getDataname() #set($first = false)#else AND ACTUAL.$key.getDataname()=LOADING.$key.getDataname()#end#end))
+      ;
+      --Deleting the records from table which are moved to history in above step.
+      DELETE FROM $TABLE
+       FROM $TABLE ACTUAL,
+        WHERE (SELECT MAX(FILE_TIME) FROM $loadTableName)>START_TIME AND NOT EXISTS (SELECT 1 FROM $loadTableName LOADING WHERE (#set($first = true)#foreach ($key in $keys)#if($first)ACTUAL.$key.getDataname()=LOADING.$key.getDataname() #set($first = false)#else AND ACTUAL.$key.getDataname()=LOADING.$key.getDataname()#end#end))
+      ;
+    END
+END IF;
+
+--insert current records (most recent one)
+INSERT INTO $TABLE ($startTime,$endTime,$typeOfChangeCol#foreach ($key in $keys),$key.getDataname()#end#foreach ($attribute in $attributes),$attribute.getDataname()#end) SELECT $startTime,'2099-12-31 00:00:00.000',$typeOfChangeCol#foreach ($key in $keys),$key.getDataname()#end#foreach ($attribute in $attributes),$attribute.getDataname()#end FROM $joinTableName WHERE $endTime IS NULL AND $typeOfChangeCol <> 2;
+--deletes will go to history
+--clean up staging tables and commit
+TRUNCATE TABLE $joinTableName;
+TRUNCATE TABLE $loadTableName;
+--Delete data older than 32 days from actual and history tables (UI can show last 30 days. 2 days margin for local time difference etc)
+DELETE from ${TABLE}
+WHERE --Expired actual records
+	$startTime < DATEADD(dd,-32,GETDATE());
+DELETE from ${TABLE}_HIST_RAW
+WHERE --Expired historical records
+	$endTime < DATEADD(dd,-32,GETDATE())
+OR (--expired deleted entries
+		CHANGE_TYPE=2
+		AND $startTime < DATEADD(dd,-32,GETDATE()));
+commit;

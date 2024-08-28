@@ -1,0 +1,67 @@
+<project name="install" basedir="." default="all">
+
+	<target name="install" depends="copyTmpToDeploy">
+		<if>
+			<available file="${dc.conf.dir}/static.properties" />
+			<then />
+			<else>
+				<copy file="${dc.extract.dir}/conf/static.properties" toFile="${dc.conf.dir}/static.properties" />
+			</else>
+		</if>
+		
+		<if>
+			<available file="${dc.admin.bin}/rmiregistry" />
+			<then>
+				<delete file="${dc.admin.bin}/rmiregistry" />
+			</then>
+		</if>
+		<copy file="${dc.extract.dir}/smf/rmiregistry" toFile="${dc.admin.bin}/rmiregistry" />
+		<chmod perm="740" file="${dc.admin.bin}/rmiregistry" />
+
+		
+		<if>
+			<available file="${dc.bin.dir}/rmiregistry" />
+			<then>
+				<delete file="${dc.bin.dir}/rmiregistry" />
+			</then>
+		</if>
+		<copy file="${dc.extract.dir}/bin/rmiregistry" toFile="${dc.bin.dir}/rmiregistry" />
+		<chmod perm="740" file="${dc.bin.dir}/rmiregistry" />
+		
+		<if>
+			<available file="${dc.admin.bin}/lwphelper" />
+		    <then>
+		    	<delete file="${dc.admin.bin}/lwphelper" />
+		    </then>
+		</if>
+		
+		<copy file="${dc.extract.dir}/smf/lwphelper" toFile="${dc.admin.bin}/lwphelper" />
+		<chmod perm="740" file="${dc.admin.bin}/lwphelper" />
+
+    <if>
+      <available file="${dc.bin.dir}/lwphelper" />
+      <then>
+        <delete file="${dc.bin.dir}/lwphelper" />
+      </then>
+    </if>
+    <copy file="${dc.extract.dir}/bin/lwphelper" toFile="${dc.bin.dir}/lwphelper" />
+    <chmod perm="740" file="${dc.bin.dir}/lwphelper" />
+				
+		<if>
+			<available file="${dc.runtime.dir}/tomcat/webapps/techpackide/lib/common.jar" />
+			<then>
+				<delete file="${dc.runtime.dir}/tomcat/webapps/techpackide/lib/common.jar" />
+				<copy todir="${dc.runtime.dir}/tomcat/webapps/techpackide/lib" flatten="true">
+					<fileset dir="${dc.platform.dir}">
+						<include name="**/dclib/common.jar" />
+					</fileset>
+				</copy>
+			</then>
+			<else />
+		</if>
+
+	</target>
+
+	<target name="update" depends="moveToObsolete,install" />
+
+</project>

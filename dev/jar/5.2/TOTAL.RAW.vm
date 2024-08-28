@@ -1,0 +1,135 @@
+##
+## Total.raw.vm
+##
+##
+##
+##
+## Delete possible data before aggregation
+##
+DELETE $targetDerivedTable.get("TOTAL")
+;
+##
+##
+##
+
+Insert into $targetDerivedTable.get("TOTAL")
+(
+##
+## unique keys
+##
+#set($first = true)
+#foreach($col in  $TargetMeasurementKeyMap.get("TOTAL"))
+#if($col.getUniquekey() == 1)
+#if($first) $col.getDataname() 
+#set($first = false)
+#else,$col.getDataname()
+#end
+#end
+#end
+,DATE_ID
+,YEAR_ID
+,MONTH_ID
+,DAY_ID
+,WEEK_ID
+,DATACOVERAGE
+,AGG_COUNT
+,ROWSTATUS
+##
+## All Columns
+##
+#foreach($col in $TargetMeasurementCounterMap.get("TOTAL"))
+,$col.getDataname()
+#end
+)
+Select
+##
+## unique keys
+##
+#set($first = true)
+#foreach($col in  $TargetMeasurementKeyMap.get("TOTAL"))
+#if ($col.getUniquekey() == 1)
+#if($first) $col.getDataname()
+#set($first = false)
+#else 
+,$col.getDataname()
+#end
+#end
+#end
+,DATE_ID
+,YEAR_ID
+,MONTH_ID
+,DAY_ID
+,DATEPART(cwk, DATE_ID)
+,SUM(PERIOD_DURATION)
+,COUNT(*)
+##
+## Calculated Columns
+##
+#foreach($col in  $TargetMeasurementCounterMap.get("TOTAL"))
+,$col.getTimeaggregation()($col.getDataname())
+#end
+from  $sourceDerivedTable.get("TOTAL")  AS src 
+where src.DATE_ID=$dateid
+and src.ROWSTATUS NOT IN ('DUPLICATE','SUSPECTED')
+group by
+#set($first = true)
+#foreach($col in  $TargetMeasurementKeyMap.get("TOTAL"))
+#if ($col.getUniquekey() == 1)
+#if ($first) $col.getDataname()
+#set($first = false)
+#else
+,$col.getDataname()
+#end
+#end
+#end 
+,DATE_ID
+,YEAR_ID
+,MONTH_ID
+,DAY_ID
+,DATEPART(cwk, DATE_ID)
+
+##
+## UPDATE
+##
+UPDATE $targetDerivedTable.get("TOTAL") AS dst 
+SET 
+##
+##  NON UNIQUE KEYS
+## 
+#set($first = true)
+#set($isunique = false)
+#foreach($col in  $TargetMeasurementKeyMap.get("TOTAL"))
+#if ($col.getUniquekey() == 0)
+#if($first) 
+dst.$col.getDataname()=src.$col.getDataname()
+#set($isunique = true)
+#set($first = false)
+#else 
+,dst.$col.getDataname()=src.$col.getDataname()
+#end
+#end
+#end
+#if($isunique)
+,SESSION_ID=$sessionid
+#else
+SESSION_ID=$sessionid
+#end
+,BATCH_ID=$batchid
+,TIMELEVEL='RAW'
+,PERIOD_DURATION=60
+,dst.DC_RELEASE=src.DC_RELEASE
+,dst.DC_SOURCE=src.DC_SOURCE
+,dst.DC_TIMEZONE=src.DC_TIMEZONE
+FROM $sourceDerivedTable.get("TOTAL") AS src 
+where src.DATE_ID=$dateid
+and dst.DATE_ID=$dateid
+and src.DATE_ID=dst.DATE_ID
+and src.ROWSTATUS NOT IN ('DUPLICATE','SUSPECTED')
+##
+## unique keys
+##
+#foreach($col in  $TargetMeasurementKeyMap.get("TOTAL"))
+#if ($col.getUniquekey() == 1)
+and dst.$col.getDataname() = src.$col.getDataname()
+#end
+#end

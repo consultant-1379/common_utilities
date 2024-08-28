@@ -1,0 +1,20 @@
+## This template is an SQL query to mark duplicates in table.
+## Variables:
+## $rawTableName - Name of the table.
+## $columns - Java Vector containing DWHColumn Rockobjects. 
+##            These are the columns of the table. Some of them are marked as uniquekeys, that defines duplicate entries.
+##
+
+for loop1 as cursor1 cursor for
+	select distinct datetime_id as loaded_datetime from $rawTableName where rowstatus is null or rowstatus=''
+do
+	UPDATE $rawTableName table1 SET table1.rowstatus = 'DUPLICATE' FROM $rawTableName table2 
+	WHERE (rowid(table1)>rowid(table2) 
+	\#foreach ($column in $columns)
+		\#if ($column.getUniquekey().intValue() == 1)
+	    	AND table1.$column.getDataname()=table2.$column.getDataname() 
+		\#end
+	\#end 
+	AND (table1.rowstatus is null OR table1.rowstatus = ''))
+	AND table2.datetime_id=loaded_datetime
+end for;

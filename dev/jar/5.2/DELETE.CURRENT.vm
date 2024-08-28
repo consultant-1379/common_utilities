@@ -1,0 +1,5 @@
+## 
+## DELETE.CURRENT.vm
+## 
+## 
+Delete from ${TABLE}_CURRENT;

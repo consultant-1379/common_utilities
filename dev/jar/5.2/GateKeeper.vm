@@ -1,0 +1,10 @@
+## 
+## GateKeeper.vm
+## 
+## 
+update LOG_AggregationStatus_in 
+set status = 'LOADED' 
+where aggregation = '$AggregationRule.getAggregation()'
+and typename = '$AggregationRule.getTargetType()'
+and datatime = $date
+and timelevel = '$AggregationRule.getTargetLevel()';

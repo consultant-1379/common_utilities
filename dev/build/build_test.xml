@@ -1,0 +1,22 @@
+<project name="common_utilities" default="test_all">
+    <property name="module.name" value="common_utilities"/>
+    <property file="${user.home}/EniqBuild/BH/build.properties"/>
+    <property name="ant.common" value="${cc.base}/tools/ant_common"/>
+    <property file="${ant.common}/common.properties"/>
+    <property name="module.build" value="${module.common_utilities.build}"/>
+    <property name="module.base" value="${module.common_utilities.base}"/>
+    <property name="module.dependants" value="${module.common_utilities.dependants}"/>
+    <import file="${ant.common}/common.xml"/>
+    <property name="tests.to.run" value="**/*Test.class"/>
+
+	<path id="common_utilities.lib.classpath">
+		<path refid="plaform.lib.classpath"/>
+		<path location="${module.repository.pkg}"/>
+	</path>
+
+	<path id="common_utilities.test.classpath">
+		<path refid="platform.test.classpath"/>
+		<path refid="common_utilities.lib.classpath"/>
+	</path>
+
+</project>

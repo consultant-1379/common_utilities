@@ -1,0 +1,113 @@
+#!/bin/bash
+# ********************************************************************
+# Ericsson Radio Systems AB                                     SCRIPT
+# ********************************************************************
+#
+#
+# (c) Ericsson Radio Systems AB 2018 - All rights reserved.
+#
+# The copyright to the computer program(s) herein is the property
+# of Ericsson Radio Systems AB, Sweden. The programs may be used 
+# and/or copied only with the written permission from Ericsson Radio 
+# Systems AB or in accordance with the terms and conditions stipulated 
+# in the agreement/contract under which the program(s) have been 
+# supplied.
+#
+# ********************************************************************
+# Name    : rmiregistry
+# Date    : 07/07/2020(dummy date) Last modified 25/04/2023
+# Purpose : ENIQ Platform RMI Registry Start/Stop script for SMF to use
+# Usage   : rmi_registry start|stop|restart|status
+# ********************************************************************
+
+unalias stop 2> /dev/null
+
+if [ ${LOGNAME} != "dcuser"  ] ; then
+  echo "This script must be executed as dcuser"
+  exit 32
+fi
+
+if [ -z "${CONF_DIR}" ] ; then
+  echo "ERROR: CONF_DIR is not set"
+  exit 1
+fi
+
+. ${CONF_DIR}/niq.rc
+. ${BIN_DIR}/common_variables.lib
+
+JAVA_HOME="${RT_DIR}/java"
+
+CPATH="${PLATFORM_DIR}"
+for _jar_ in `${FIND} ${PLATFORM_DIR}/*/dclib/ -name \*.jar | ${GREP} -v mediator-R*` ; do
+	CPATH=${CPATH}:$_jar_
+done
+
+if [ -s ${SMF_BIN_DIR}/eniq_service_start_stop.bsh ]; then
+  SSR_SCRIPT=${SMF_BIN_DIR}/eniq_service_start_stop.bsh
+else
+  SSR_SCRIPT=${ADMIN_BIN}/eniq_service_start_stop.bsh
+fi
+
+status() {
+	${ADMIN_BIN}/rmiregistry status
+}
+
+stop(){
+	${SSR_SCRIPT} -s rmiregistry -a stop
+}
+
+start (){
+	${SSR_SCRIPT} -s rmiregistry -a start
+}
+
+eexecute() 
+{
+  if [ "${X1}" != "" ] ; then
+    ${JAVA_HOME}/bin/java -d64 -Dpname="RMIServiceAdmin" -Xmx64M \
+      -classpath ${CPATH} -Djava.rmi.server.codebase="${CODEBASE}" \
+      com.ericsson.eniq.common.RMIServiceAdmin ${X1} ${X2} ${X3} ${X4} ${X5} ${X6}
+  
+    ECODE=$?
+
+    if [ ${ECODE} -ne 0 ] ; then
+	  ${ECHO} "RMIServiceAdmin failed with error code: ${ECODE}"
+      exit ${ECODE}
+    fi
+	
+  else
+    ${ECHO} "Invalid arguments passed while calling RMIServiceAdmin. Exiting..."
+	exit 2
+  fi
+
+  exit 0
+}
+
+
+case "$1" in
+  start)
+    start
+    ;;
+  stop)
+    stop
+    ;;
+  restart)
+     stop
+     start
+     ;;
+  status)
+    status
+    ;;
+  -e)
+     X1=$2
+     X2=$3
+     X3=$4
+     X4=$5
+     X5=$6
+     X6=$7
+     eexecute
+     ;;
+  *)
+    ${ECHO} "Usage: ${0} start|stop|restart|status|-e COMMAND"
+    exit 10
+    ;;
+esac

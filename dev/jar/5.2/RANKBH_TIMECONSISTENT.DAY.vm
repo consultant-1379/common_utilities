@@ -1,0 +1,255 @@
+##
+## RANKBH_TIMECONSISTENT.DAY.vm
+##
+## Delete possible data before aggregation
+
+set temporary option join_preference='-1'
+
+DELETE $targetDerivedTable.get("RANKBH")
+WHERE DATE_ID=$dateid AND BHTYPE='$Bhtype.get("RANKBH")'
+##
+##
+##
+Insert into $targetDerivedTable.get("RANKBH")
+(
+##
+## unique keys
+##
+#set($first = true)
+#foreach($col in $TargetMeasurementKeyMap.get("RANKBH"))
+#if($col.getUniquekey() == 1)
+#if($first) $col.getDataname()
+#set($first = false)
+#else,$col.getDataname()
+#end
+#end
+#end
+,DATE_ID
+,BHTYPE
+,BHVALUE
+,BHCLASS
+,WEEKBH
+,MONTHBH
+,DATACOVERAGE
+,PERIOD_DURATION
+,TIMELEVEL
+,SESSION_ID
+,BATCH_ID
+,ROWSTATUS
+,BH_ID
+,OFFSET
+,WINDOWSIZE
+,BHOBJECT
+)
+SELECT
+##
+## unique keys
+##
+#set($first = true)
+#foreach($col in $TargetMeasurementKeyMap.get("RANKBH"))
+#if ($col.getUniquekey() == 1)
+#if($first) a.$col.getDataname()
+#set($first = false)
+#else
+,a.$col.getDataname()
+#end
+#end
+#end
+,a.DATE_ID
+,'$Bhtype.get("RANKBH")'
+,MAX(a.bhvalue)
+,1
+,0
+,0
+,NULL
+,NULL
+,'RANKBH'
+,$sessionid
+,$batchid
+,'AGGREGATED'
+,a.ID
+,a.minute_offset
+,a.SLIDING_WINDOW_SIZE
+,a.BHOBJECT
+from $sourceTable.get("RANKBH") as a,
+(SELECT
+#set($first = true)
+#foreach($col in $TargetMeasurementKeyMap.get("RANKBH"))
+#if ($col.getUniquekey() == 1)
+#if($first)  a.$col.getDataname()
+#set($first = false)
+#else
+,a.$col.getDataname()
+#end
+#end
+#end
+,a.hour_id,
+a.bhval,
+a.hour_id - N_THRESHOLD as nlim,
+a.hour_id + b.P_THRESHOLD as plim
+from(
+select
+#set($first = true)
+#foreach($col in $TargetMeasurementKeyMap.get("RANKBH"))
+#if ($col.getUniquekey() == 1)
+#if($first)  $col.getDataname()
+#set($first = false)
+#else
+,$col.getDataname()
+#end
+#end
+#end
+,hour_id
+,avg(bhvalue) as bhval
+from
+$sourceTable.get("RANKBH")
+where date_id between dateadd(day,-LOOKBACK_DAYS,$dateid) and $dateid
+	and rowstatus not in('DUPLICATE','SUSPECTED')
+group by
+#set($first = true)
+#foreach($col in $TargetMeasurementKeyMap.get("RANKBH"))
+#if ($col.getUniquekey() == 1)
+#if($first)  $col.getDataname()
+#set($first = false)
+#else
+,$col.getDataname()
+#end
+#end
+#end
+,hour_id) a
+join (
+select
+#set($first = true)
+#foreach($col in $TargetMeasurementKeyMap.get("RANKBH"))
+#if ($col.getUniquekey() == 1)
+#if($first)  $col.getDataname()
+#set($first = false)
+#else
+,$col.getDataname()
+#end
+#end
+#end
+,max(bhval)as bhval,
+min(N_THRESHOLD) N_THRESHOLD,
+min(P_THRESHOLD)P_THRESHOLD from
+(select
+#set($first = true)
+#foreach($col in $TargetMeasurementKeyMap.get("RANKBH"))
+#if ($col.getUniquekey() == 1)
+#if($first)  $col.getDataname()
+#set($first = false)
+#else
+,$col.getDataname()
+#end
+#end
+#end
+,hour_id
+,avg(bhvalue) as bhval,
+min(N_THRESHOLD)N_THRESHOLD,
+min(P_THRESHOLD)P_THRESHOLD from
+        $sourceTable.get("RANKBH")
+WHERE
+date_id between dateadd(day,-LOOKBACK_DAYS,DATE_ID) and $dateid
+	and rowstatus not in('DUPLICATE','SUSPECTED')
+        group by
+#set($first = true)
+#foreach($col in $TargetMeasurementKeyMap.get("RANKBH"))
+#if ($col.getUniquekey() == 1)
+#if($first)  $col.getDataname()
+#set($first = false)
+#else
+,$col.getDataname()
+#end
+#end
+#end
+,hour_id)
+        as a
+    group by
+#set($first = true)
+#foreach($col in $TargetMeasurementKeyMap.get("RANKBH"))
+#if ($col.getUniquekey() == 1)
+#if($first)  $col.getDataname()
+#set($first = false)
+#else
+,$col.getDataname()
+#end
+#end
+#end
+) b
+on (
+#set($first = true)
+#foreach($col in $TargetMeasurementKeyMap.get("RANKBH"))
+#if ($col.getUniquekey() == 1)
+#if($first)  a.$col.getDataname() = b.$col.getDataname()
+#set($first = false)
+#else
+and a.$col.getDataname() = b.$col.getDataname()
+#end
+#end
+#end
+and a.bhval = b.bhval)
+) as b
+where
+#set($first = true)
+#foreach($col in $TargetMeasurementKeyMap.get("RANKBH"))
+#if ($col.getUniquekey() == 1)
+#if($first)  a.$col.getDataname() = b.$col.getDataname()
+#set($first = false)
+#else
+and a.$col.getDataname() = b.$col.getDataname()
+#end
+#end
+#end
+and a.hour_id between b.nlim and b.plim
+and a.date_id = $dateid
+and a.rowstatus not in ('DUPLICATE','SUSPECTED')
+group by
+#set($first = true)
+#foreach($col in $TargetMeasurementKeyMap.get("RANKBH"))
+#if ($col.getUniquekey() == 1)
+#if($first)  a.$col.getDataname()
+#set($first = false)
+#else
+,a.$col.getDataname()
+#end
+#end
+#end
+,a.date_id,
+a.bhtype,
+a.id,
+a.minute_offset,
+a.sliding_window_size,
+a.bhobject
+
+## UPDATE
+
+UPDATE $targetDerivedTable.get("RANKBH") AS dst
+SET
+dst.BUSYHOUR=src.HOUR_ID,
+dst.PERIOD_DURATION=src.PERIOD_DURATION
+#foreach($col in $TargetMeasurementKeyMap.get("RANKBH"))
+#if ($col.getUniquekey() == 0)
+,dst.$col.getDataname() = src.$col.getDataname()
+#end
+#end
+,dst.DC_RELEASE = src.DC_RELEASE
+,dst.DC_SOURCE = src.DC_SOURCE
+,dst.DC_TIMEZONE = src.DC_TIMEZONE
+FROM $sourceTable.get("RANKBH") AS src
+where src.DATE_ID=$dateid
+and dst.DATE_ID=$dateid
+and src.DATE_ID=dst.DATE_ID
+and src.BHVALUE=dst.BHVALUE
+and src.BHTYPE=dst.BHTYPE
+and src.ROWSTATUS NOT IN ('DUPLICATE','SUSPECTED')
+##
+## unique keys
+##
+#foreach($col in $TargetMeasurementKeyMap.get("RANKBH"))
+#if ($col.getUniquekey() == 1)
+and dst.$col.getDataname() = src.$col.getDataname()
+#end
+#end
+ORDER BY src.HOUR_ID
+
+set temporary option join_preference='0'

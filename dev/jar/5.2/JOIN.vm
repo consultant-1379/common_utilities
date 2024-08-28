@@ -1,0 +1,132 @@
+##
+## JOIN.vm
+##
+##
+##
+##
+
+\#foreach($table in $TargetTableList)
+
+Insert into $table.get("table")
+(
+##
+## unique keys
+##
+\#set($first = true)
+\#foreach($col in  $MeasurementKeyList)
+\#if($first) $col.getDataname() 
+\#set($first = false)
+\#else,$col.getDataname()
+\#end
+\#end
+,DC_RELEASE
+,DATE_ID
+,YEAR_ID
+,MONTH_ID
+,DAY_ID
+,HOUR_ID
+,DATETIME_ID
+,MIN_ID
+,SESSION_ID
+,BATCH_ID
+,TIMELEVEL
+,PERIOD_DURATION
+,DC_SOURCE
+,DC_TIMEZONE
+,DC_SUSPECTFLAG
+,UTC_DATETIME_ID
+,ROWSTATUS
+##
+## Aggregated Columns
+##
+\#foreach($col in $MeasurementCounterList)
+,$col.getDataname()
+\#end
+)
+Select
+##
+## unique keys
+##
+\#set($first = true)
+\#foreach($col in  $MeasurementKeyList)
+\#if($first)   
+\#if($IgnoredKeysList.contains($col.getDataname()))
+MIN(batch_id || '/' || session_id) as $col.getDataname()
+\#else   	
+\#if ($col.getUniquekey() == 1)
+$col.getDataname()
+\#else
+MIN($col.getDataname())
+\#end    
+\#end
+\#set($first = false)  
+\#else   
+\#if($IgnoredKeysList.contains($col.getDataname()))
+,MIN(batch_id || '/' || session_id) as $col.getDataname()
+\#else   
+\#if ($col.getUniquekey() == 1)
+,$col.getDataname()
+\#else
+,MIN($col.getDataname())
+\#end   
+\#end
+\#end
+\#end
+,DC_RELEASE
+,MIN(DATE_ID)
+,MIN(YEAR_ID)
+,MIN(MONTH_ID)
+,MIN(DAY_ID)
+,MIN(HOUR_ID)
+,DATETIME_ID
+,MIN(MIN_ID)
+,MIN(SESSION_ID)
+,MIN(BATCH_ID)
+,MIN(TIMELEVEL)
+,MIN(PERIOD_DURATION)
+,MIN(DC_SOURCE)
+,MIN(DC_TIMEZONE)
+,MIN(DC_SUSPECTFLAG)
+,MIN(UTC_DATETIME_ID)
+,MIN(ROWSTATUS)
+##
+## Joined columns
+##
+\#foreach($col in $MeasurementCounterList)
+,MAX($col.getDataname())
+\#end
+from  $SourceTable AS src 
+where src.date_id >= $table.get("startDate") and src.date_id < $table.get("endDate")
+group by
+\#set($first = true)
+\#foreach($col in $MeasurementKeyList)
+\#if ($col.getUniquekey() == 1)
+\#if ($first)
+\#if(!$IgnoredKeysList.contains($col.getDataname()))
+$col.getDataname()
+\#set($first = false)
+\#end
+\#else
+\#if(!$IgnoredKeysList.contains($col.getDataname()))
+,$col.getDataname()
+\#end
+\#end
+\#end
+\#end
+,DC_RELEASE
+,DATETIME_ID
+
+\#end
+
+commit
+
+##
+##
+## Clean _PREV table
+##
+TRUNCATE TABLE $SourceTable
+##
+##
+##
+
+
